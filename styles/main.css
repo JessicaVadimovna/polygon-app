@@ -1,0 +1,38 @@
+body {
+  background-color: #333;
+  color: white;
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  margin: 10px;
+  padding: 10px;
+  font-size: 14px;
+}
+
+.zone {
+  background-color: #222;
+  border: 1px solid #555;
+  margin: 5px;
+  padding: 5px;
+  user-select: none;
+  position: relative;
+}
+
+buffer-zone {
+  z-index: 20;
+}
+
+work-zone {
+  z-index: 10;
+}
+
+buffer-zone svg g rect,
+work-zone svg g rect,
+buffer-zone svg g polygon,
+work-zone svg g polygon {
+  pointer-events: all;
+  cursor: grab;
+}
