@@ -8,20 +8,15 @@ class WorkZone extends HTMLElement {
   }
 
   connectedCallback() {
-    this.style.height = '400px';
-    this.style.overflow = 'hidden';
-    this.style.zIndex = '10'; // Ниже buffer-zone
+    this.style.display = 'flex';
+    this.style.flex = '1';
     this.classList.add('zone');
 
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.svg.setAttribute('width', '100%');
     this.svg.setAttribute('height', '100%');
-    this.svg.setAttribute('viewBox', '0 0 100 50');
+    this.svg.setAttribute('viewBox', '0 0 100 100');
     this.svg.setAttribute('pointer-events', 'all');
-    this.svg.addEventListener('mousedown', e => {
-      console.log('WorkZone SVG mousedown, target:', e.target.tagName);
-      e.stopPropagation();
-    });
     this.appendChild(this.svg);
 
     this.polygonLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -36,6 +31,8 @@ class WorkZone extends HTMLElement {
     this.svg.addEventListener('mousemove', this.onMouseMove.bind(this));
     this.svg.addEventListener('mouseup', () => this.dragging = false);
     this.svg.addEventListener('mouseleave', () => this.dragging = false);
+
+    console.log('WorkZone connected, SVG dimensions:', this.svg.getBoundingClientRect());
 
     setTimeout(() => {
       console.log('WorkZone groups count:', this.polygonLayer.querySelectorAll('g').length);
@@ -68,17 +65,15 @@ class WorkZone extends HTMLElement {
     
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
     polygon.setAttribute('points', points);
-    polygon.setAttribute('fill', 'red');
-    polygon.setAttribute('stroke', 'yellow');
-    polygon.setAttribute('stroke-width', '2');
-    polygon.setAttribute('pointer-events', 'all');
+    polygon.setAttribute('fill', 'rgb(148, 0, 37)');
+    polygon.setAttribute('stroke', 'none');
     
     group.setAttribute('pointer-events', 'all');
     group.style.cursor = 'grab';
     group.addEventListener('mousedown', e => {
       console.log('WorkZone group mousedown, points:', points);
       this.startDragging(e, group, points);
-      e.stopPropagation();
+      e.preventDefault();
     });
     group.appendChild(rect);
     group.appendChild(polygon);
@@ -88,29 +83,27 @@ class WorkZone extends HTMLElement {
   startDragging(event, group, points) {
     console.log('WorkZone start dragging:', points);
     event.preventDefault();
-    event.stopPropagation();
     group.style.cursor = 'grabbing';
     group.style.zIndex = '30';
 
     const svg = this.svg;
     const rect = svg.getBoundingClientRect();
-    const viewBox = svg.viewBox.baseVal;
     const startX = event.clientX;
     const startY = event.clientY;
     let translateX = 0;
     let translateY = 0;
 
     const onMouseMove = e => {
-      console.log('WorkZone dragging');
-      const dx = (e.clientX - startX) * (viewBox.width / rect.width) / this.scale;
-      const dy = (e.clientY - startY) * (viewBox.height / rect.height) / this.scale;
+      console.log('WorkZone dragging, clientX:', e.clientX, 'clientY:', e.clientY);
+      const dx = (e.clientX - startX) * (100 / rect.width) / this.scale;
+      const dy = (e.clientY - startY) * (100 / rect.height) / this.scale;
       translateX = dx;
       translateY = dy;
       group.setAttribute('transform', `translate(${dx}, ${dy})`);
     };
 
     const onMouseUp = e => {
-      console.log('WorkZone stop dragging');
+      console.log('WorkZone stop dragging, drop at:', e.clientX, e.clientY);
       group.style.cursor = 'grab';
       group.style.zIndex = '';
       document.removeEventListener('mousemove', onMouseMove);
@@ -129,10 +122,28 @@ class WorkZone extends HTMLElement {
         e.clientY >= bufferRect.top &&
         e.clientY <= bufferRect.bottom
       ) {
-        console.log('WorkZone dropped in BufferZone:', points);
-        bufferZone.addPolygon(points);
+        console.log('WorkZone dropping in BufferZone:', points);
+        const bufferSvg = bufferZone.svg;
+        const bufferSvgRect = bufferSvg.getBoundingClientRect();
+        
+        const dropX = (e.clientX - bufferSvgRect.left) * (100 / bufferSvgRect.width);
+        const dropY = (e.clientY - bufferSvgRect.top) * (100 / bufferSvgRect.height);
+        
+        const newPoints = points
+          .split(' ')
+          .map(p => {
+            const [x, y] = p.split(',').map(Number);
+            const newX = (x + translateX - this.offsetX) / this.scale;
+            const newY = (y + translateY - this.offsetY) / this.scale;
+            return `${newX + dropX},${newY + dropY}`;
+          })
+          .join(' ');
+        
+        console.log('Adding to BufferZone with points:', newPoints);
+        bufferZone.addPolygon(newPoints);
         group.remove();
       } else {
+        console.log('Dropped in WorkZone, updating position');
         const newPoints = points
           .split(' ')
           .map(p => {
@@ -152,7 +163,7 @@ class WorkZone extends HTMLElement {
   updateViewBox() {
     this.svg.setAttribute(
       'viewBox',
-      `${this.offsetX} ${this.offsetY} ${100 / this.scale} ${50 / this.scale}`
+      `${this.offsetX} ${this.offsetY} ${100 / this.scale} ${100 / this.scale}`
     );
     this.drawAxes();
   }
@@ -160,7 +171,13 @@ class WorkZone extends HTMLElement {
   onWheel(e) {
     e.preventDefault();
     const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+    const rect = this.svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (100 / this.scale / rect.width) + this.offsetX;
+    const mouseY = (e.clientY - rect.top) * (100 / this.scale / rect.height) + this.offsetY;
+    
     this.scale *= zoom;
+    this.offsetX = mouseX - (e.clientX - rect.left) * (100 / this.scale / rect.width);
+    this.offsetY = mouseY - (e.clientY - rect.top) * (100 / this.scale / rect.height);
     this.updateViewBox();
   }
 
@@ -173,8 +190,9 @@ class WorkZone extends HTMLElement {
 
   onMouseMove(e) {
     if (!this.dragging) return;
-    const dx = (e.clientX - this.lastX) * (100 / this.scale / this.offsetWidth);
-    const dy = (e.clientY - this.lastY) * (50 / this.scale / this.offsetHeight);
+    const rect = this.svg.getBoundingClientRect();
+    const dx = (e.clientX - this.lastX) * (100 / this.scale / rect.width);
+    const dy = (e.clientY - this.lastY) * (100 / this.scale / rect.height);
     this.offsetX -= dx;
     this.offsetY -= dy;
     this.lastX = e.clientX;
@@ -189,47 +207,55 @@ class WorkZone extends HTMLElement {
   drawAxes() {
     this.axisLayer.innerHTML = '';
 
-    const step = 10;
-    const scaleX = 100 / this.scale;
-    const scaleY = 50 / this.scale;
+    const step = 10 / this.scale;
+    const viewWidth = 100 / this.scale;
+    const viewHeight = 100 / this.scale;
+    const minX = this.offsetX;
+    const maxX = this.offsetX + viewWidth;
+    const minY = this.offsetY;
+    const maxY = this.offsetY + viewHeight;
 
-    for (let x = Math.floor(this.offsetX / step) * step; x < this.offsetX + scaleX; x += step) {
+    const svgRect = this.svg.getBoundingClientRect();
+
+    for (let x = minX; x <= maxX + step / 2; x += step) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', x);
-      line.setAttribute('y1', this.offsetY);
+      line.setAttribute('y1', minY);
       line.setAttribute('x2', x);
-      line.setAttribute('y2', this.offsetY + scaleY);
+      line.setAttribute('y2', maxY);
       line.setAttribute('stroke', 'lightgray');
-      line.setAttribute('stroke-width', '0.2');
+      line.setAttribute('stroke-width', 0.2 / this.scale);
       this.axisLayer.appendChild(line);
 
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', x + 0.2);
-      text.setAttribute('y', this.offsetY + 2);
-      text.setAttribute('font-size', '1');
+      text.setAttribute('x', x + 0.2 / this.scale);
+      text.setAttribute('y', minY + 2 / this.scale);
+      text.setAttribute('font-size', 1 / this.scale);
       text.setAttribute('fill', 'black');
-      text.textContent = x;
+      text.textContent = x.toFixed(1);
       this.axisLayer.appendChild(text);
     }
 
-    for (let y = Math.floor(this.offsetY / step) * step; y < this.offsetY + scaleY; y += step) {
+    for (let y = minY; y <= maxY + step / 2; y += step) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', this.offsetX);
+      line.setAttribute('x1', minX);
       line.setAttribute('y1', y);
-      line.setAttribute('x2', this.offsetX + scaleX);
+      line.setAttribute('x2', maxX);
       line.setAttribute('y2', y);
       line.setAttribute('stroke', 'lightgray');
-      line.setAttribute('stroke-width', '0.2');
+      line.setAttribute('stroke-width', 0.2 / this.scale);
       this.axisLayer.appendChild(line);
 
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', this.offsetX + 0.2);
-      text.setAttribute('y', y + 1);
-      text.setAttribute('font-size', '1');
+      text.setAttribute('x', minX + 0.2 / this.scale);
+      text.setAttribute('y', y + 1 / this.scale);
+      text.setAttribute('font-size', 1 / this.scale);
       text.setAttribute('fill', 'black');
-      text.textContent = y;
+      text.textContent = y.toFixed(1);
       this.axisLayer.appendChild(text);
     }
+
+    console.log('WorkZone drawAxes: Grid drawn from x=', minX, 'to', maxX, 'y=', minY, 'to', maxY, 'viewWidth=', viewWidth, 'viewHeight=', viewHeight, 'svgWidth=', svgRect.width, 'svgHeight=', svgRect.height);
   }
 }
 

@@ -4,29 +4,72 @@ body {
   font-family: sans-serif;
   margin: 0;
   padding: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
-button {
-  margin: 10px;
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 10px;
+  background-color: #444;
+}
+
+.toolbar button:first-child {
+  margin-left: 10px;
+  margin-right: 0;
+  padding: 10px 20px;
   font-size: 14px;
+  cursor: pointer;
+}
+
+.toolbar button:nth-child(2) {
+  margin-left: 0;
+  margin-right: 5px; /* Small gap between Save and Reset */
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toolbar button:nth-child(3) {
+  margin-left: 0;
+  margin-right: 10px; /* 10px margin from right edge */
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+polygon-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
 }
 
 .zone {
   background-color: #222;
   border: 1px solid #555;
   margin: 5px;
-  padding: 5px;
-  user-select: none;
-  position: relative;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-buffer-zone {
-  z-index: 20;
-}
-
+buffer-zone,
 work-zone {
-  z-index: 10;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+}
+
+buffer-zone svg,
+work-zone svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 buffer-zone svg g rect,
@@ -35,4 +78,10 @@ buffer-zone svg g polygon,
 work-zone svg g polygon {
   pointer-events: all;
   cursor: grab;
+  stroke: none;
+}
+
+buffer-zone svg g:active,
+work-zone svg g:active {
+  cursor: grabbing;
 }

@@ -5,6 +5,11 @@ import { savePolygons, loadPolygons, clearPolygons } from './storage.js';
 
 class PolygonApp extends HTMLElement {
   connectedCallback() {
+    this.style.display = 'flex';
+    this.style.flexDirection = 'column';
+    this.style.height = '100vh';
+    this.style.overflow = 'hidden';
+
     this.innerHTML = `
       <div class="toolbar">
         <button id="createBtn">Создать</button>
@@ -12,7 +17,8 @@ class PolygonApp extends HTMLElement {
         <button id="resetBtn">Сбросить</button>
       </div>
       <buffer-zone id="bufferZone"></buffer-zone>
-      <work-zone id="workZone"></work-zone>`;
+      <work-zone id="workZone"></work-zone>
+    `;
 
     console.log('PolygonApp connected, bufferZone:', !!this.querySelector('#bufferZone'));
 
