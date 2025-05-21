@@ -31,11 +31,14 @@ class PolygonApp extends HTMLElement {
       buffer.clear();
       const count = Math.floor(Math.random() * 16) + 5;
       console.log('Creating', count, 'polygons');
+      const centers = [];
       for (let i = 0; i < count; i++) {
-        const points = generateRandomPolygon();
-        console.log('Adding polygon to buffer:', points);
+        const { points, center } = generateRandomPolygon(centers);
         buffer.addPolygon(points);
+        centers.push(center);
       }
+      // Фиксированный viewBox для буферной зоны
+      buffer.svg.setAttribute('viewBox', '0 0 100 100');
     });
 
     this.querySelector('#saveBtn').addEventListener('click', () => {

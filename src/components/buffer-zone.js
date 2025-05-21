@@ -13,11 +13,6 @@ class BufferZone extends HTMLElement {
     this.appendChild(this.svg);
 
     console.log('BufferZone connected, SVG dimensions:', this.svg.getBoundingClientRect());
-
-    setTimeout(() => {
-      console.log('BufferZone groups count:', this.svg.querySelectorAll('g').length);
-      this.svg.querySelectorAll('g').forEach(g => console.log('BufferZone group children:', g.children.length));
-    }, 1000);
   }
 
   addPolygon(points) {
@@ -59,7 +54,6 @@ class BufferZone extends HTMLElement {
   }
 
   startDragging(event, group, points) {
-    console.log('BufferZone start dragging:', points);
     event.preventDefault();
     group.style.cursor = 'grabbing';
     group.style.zIndex = '30';
@@ -71,59 +65,78 @@ class BufferZone extends HTMLElement {
     let translateX = 0;
     let translateY = 0;
 
+    // Вычисляем центроид полигона
+    const coords = points.split(' ').map(p => p.split(',').map(Number));
+    const cx = coords.reduce((sum, p) => sum + p[0], 0) / coords.length;
+    const cy = coords.reduce((sum, p) => sum + p[1], 0) / coords.length;
+
     const onMouseMove = e => {
-      console.log('BufferZone dragging, clientX:', e.clientX, 'clientY:', e.clientY);
-      const dx = (e.clientX - startX) * (100 / rect.width);
-      const dy = (e.clientY - startY) * (100 / rect.height);
+      const dx = (e.clientX - startX) * (svg.viewBox.baseVal.width / rect.width);
+      const dy = (e.clientY - startY) * (svg.viewBox.baseVal.height / rect.height);
       translateX = dx;
       translateY = dy;
       group.setAttribute('transform', `translate(${dx}, ${dy})`);
     };
 
     const onMouseUp = e => {
-      console.log('BufferZone stop dragging, drop at:', e.clientX, e.clientY);
       group.style.cursor = 'grab';
       group.style.zIndex = '';
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
 
-      const workZone = document.querySelector('work-zone');
-      if (!workZone) {
-        console.log('WorkZone not found');
-        group.removeAttribute('transform');
-        return;
-      }
-      const workRect = workZone.getBoundingClientRect();
+      const bufferRect = this.getBoundingClientRect();
       if (
-        e.clientX >= workRect.left &&
-        e.clientX <= workRect.right &&
-        e.clientY >= workRect.top &&
-        e.clientY <= workRect.bottom
+        e.clientX >= bufferRect.left &&
+        e.clientX <= bufferRect.right &&
+        e.clientY >= bufferRect.top &&
+        e.clientY <= bufferRect.bottom
       ) {
-        console.log('BufferZone dropping in WorkZone:', points);
-        const workSvg = workZone.svg;
-        const workSvgRect = workSvg.getBoundingClientRect();
-        const workViewBox = workSvg.viewBox.baseVal;
-        
-        const dropX = (e.clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width);
-        const dropY = (e.clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height);
-        
+        // Полигон отпущен внутри буферной зоны
         const newPoints = points
           .split(' ')
           .map(p => {
             const [x, y] = p.split(',').map(Number);
-            const newX = (x + translateX) * (workViewBox.width / 100) / workZone.scale + workZone.offsetX;
-            const newY = (y + translateY) * (workViewBox.height / 100) / workZone.scale + workZone.offsetY;
-            return `${newX + dropX},${newY + dropY}`;
+            return `${x + translateX},${y + translateY}`;
           })
           .join(' ');
-        
-        console.log('Adding to WorkZone with points:', newPoints);
-        workZone.addPolygon(newPoints);
         group.remove();
+        this.addPolygon(newPoints);
       } else {
-        console.log('Dropped outside WorkZone, resetting position');
-        group.removeAttribute('transform');
+        const workZone = document.querySelector('work-zone');
+        if (workZone) {
+          const workRect = workZone.getBoundingClientRect();
+          if (
+            e.clientX >= workRect.left &&
+            e.clientX <= workRect.right &&
+            e.clientY >= workRect.top &&
+            e.clientY <= workRect.bottom
+          ) {
+            // Полигон отпущен в рабочей зоне
+            const workSvg = workZone.svg;
+            const workSvgRect = workSvg.getBoundingClientRect();
+            const workViewBox = workSvg.viewBox.baseVal;
+            
+            const dropX = (e.clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width) + workZone.offsetX;
+            const dropY = (e.clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height) + workZone.offsetY;
+            
+            const newPoints = points
+              .split(' ')
+              .map(p => {
+                const [x, y] = p.split(',').map(Number);
+                return `${dropX + (x - cx)},${dropY + (y - cy)}`;
+              })
+              .join(' ');
+            
+            workZone.addPolygon(newPoints);
+            group.remove();
+          } else {
+            // Полигон отпущен вне обеих зон
+            group.removeAttribute('transform');
+          }
+        } else {
+          console.log('WorkZone not found');
+          group.removeAttribute('transform');
+        }
       }
     };
 
