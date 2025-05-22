@@ -13,8 +13,10 @@ class PolygonApp extends HTMLElement {
     this.innerHTML = `
       <div class="toolbar">
         <button id="createBtn">Создать</button>
-        <button id="saveBtn">Сохранить</button>
-        <button id="resetBtn">Сбросить</button>
+        <div class="save-reset-group">
+          <button id="saveBtn">Сохранить</button>
+          <button id="resetBtn">Сбросить</button>
+        </div>
       </div>
       <buffer-zone id="bufferZone"></buffer-zone>
       <work-zone id="workZone"></work-zone>
@@ -66,4 +68,3 @@ class PolygonApp extends HTMLElement {
 if (!customElements.get('polygon-app')) {
   customElements.define('polygon-app', PolygonApp);
 }
-
