@@ -26,7 +26,7 @@ class BufferZone extends HTMLElement {
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-    const padding = 5;
+    const padding = Math.max(maxX - minX, maxY - minY) * 0.01; // Уменьшено до 1%
     
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', minX - padding);
@@ -65,7 +65,6 @@ class BufferZone extends HTMLElement {
     let translateX = 0;
     let translateY = 0;
 
-    // Вычисляем центроид полигона
     const coords = points.split(' ').map(p => p.split(',').map(Number));
     const cx = coords.reduce((sum, p) => sum + p[0], 0) / coords.length;
     const cy = coords.reduce((sum, p) => sum + p[1], 0) / coords.length;
@@ -91,7 +90,6 @@ class BufferZone extends HTMLElement {
         e.clientY >= bufferRect.top &&
         e.clientY <= bufferRect.bottom
       ) {
-        // Полигон отпущен внутри буферной зоны
         const newPoints = points
           .split(' ')
           .map(p => {
@@ -111,13 +109,12 @@ class BufferZone extends HTMLElement {
             e.clientY >= workRect.top &&
             e.clientY <= workRect.bottom
           ) {
-            // Полигон отпущен в рабочей зоне
             const workSvg = workZone.svg;
             const workSvgRect = workSvg.getBoundingClientRect();
             const workViewBox = workSvg.viewBox.baseVal;
             
-            const dropX = (e.clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width) + workZone.offsetX;
-            const dropY = (e.clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height) + workZone.offsetY;
+            const dropX = (e.clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width) + workViewBox.x;
+            const dropY = (e.clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height) + workViewBox.y;
             
             const newPoints = points
               .split(' ')
@@ -130,7 +127,6 @@ class BufferZone extends HTMLElement {
             workZone.addPolygon(newPoints);
             group.remove();
           } else {
-            // Полигон отпущен вне обеих зон
             group.removeAttribute('transform');
           }
         } else {

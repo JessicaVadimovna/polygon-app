@@ -15,7 +15,7 @@ class WorkZone extends HTMLElement {
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.svg.setAttribute('width', '100%');
     this.svg.setAttribute('height', '100%');
-    this.svg.setAttribute('preserveAspectRatio', 'none'); // Отключаем сохранение пропорций
+    this.svg.setAttribute('preserveAspectRatio', 'none');
     this.svg.setAttribute('pointer-events', 'all');
     this.appendChild(this.svg);
 
@@ -34,7 +34,6 @@ class WorkZone extends HTMLElement {
 
     console.log('WorkZone connected, SVG dimensions:', this.svg.getBoundingClientRect());
 
-    // Откладываем начальную отрисовку до полной загрузки DOM
     window.addEventListener('load', () => {
       this.updateViewBox();
       this.drawAxes();
@@ -52,7 +51,8 @@ class WorkZone extends HTMLElement {
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-    const padding = 5;
+    
+    const padding = Math.max(maxX - minX, maxY - minY) * 0.01; // Уменьшено до 1%
     
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', minX - padding);
@@ -92,6 +92,10 @@ class WorkZone extends HTMLElement {
     let translateX = 0;
     let translateY = 0;
 
+    const coords = points.split(' ').map(p => p.split(',').map(Number));
+    const cx = coords.reduce((sum, p) => sum + p[0], 0) / coords.length;
+    const cy = coords.reduce((sum, p) => sum + p[1], 0) / coords.length;
+
     const onMouseMove = e => {
       console.log('WorkZone dragging, clientX:', e.clientX, 'clientY:', e.clientY);
       const dx = (e.clientX - startX) * (100 / rect.width) / this.scale;
@@ -124,20 +128,19 @@ class WorkZone extends HTMLElement {
         console.log('WorkZone dropping in BufferZone:', points);
         const bufferSvg = bufferZone.svg;
         const bufferSvgRect = bufferSvg.getBoundingClientRect();
-        
-        const dropX = (e.clientX - bufferSvgRect.left) * (100 / bufferSvgRect.width);
-        const dropY = (e.clientY - bufferSvgRect.top) * (100 / bufferSvgRect.height);
-        
-        const newPoints = points
-          .split(' ')
-          .map(p => {
-            const [x, y] = p.split(',').map(Number);
-            const newX = (x + translateX - this.offsetX) / this.scale;
-            const newY = (y + translateY - this.offsetY) / this.scale;
-            return `${newX + dropX},${newY + dropY}`;
+        const bufferViewBox = bufferSvg.viewBox.baseVal;
+
+        const dropX = (e.clientX - bufferSvgRect.left) * (bufferViewBox.width / bufferSvgRect.width);
+        const dropY = (e.clientY - bufferSvgRect.top) * (bufferViewBox.height / bufferSvgRect.height);
+
+        console.log('Drop coordinates in buffer zone:', dropX, dropY);
+
+        const newPoints = coords
+          .map(([x, y]) => {
+            return `${dropX + (x - cx)},${dropY + (y - cy)}`;
           })
           .join(' ');
-        
+
         console.log('Adding to BufferZone with points:', newPoints);
         bufferZone.addPolygon(newPoints);
         group.remove();
@@ -161,7 +164,6 @@ class WorkZone extends HTMLElement {
 
   updateViewBox() {
     const container = this.getBoundingClientRect();
-    // Проверка на нулевую высоту контейнера
     const aspectRatio = container.height > 0 ? container.width / container.height : 1;
     const viewHeight = 100 / this.scale;
     const viewWidth = viewHeight * aspectRatio;
@@ -243,7 +245,6 @@ class WorkZone extends HTMLElement {
     const minY = this.offsetY;
     const maxY = this.offsetY + viewHeight;
 
-    // Рисуем вертикальные линии
     for (let x = Math.floor(minX / step) * step; x <= maxX + step / 2; x += step) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', x);
@@ -263,7 +264,6 @@ class WorkZone extends HTMLElement {
       this.axisLayer.appendChild(text);
     }
 
-    // Рисуем горизонтальные линии
     for (let y = Math.floor(minY / step) * step; y <= maxY + step / 2; y += step) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', minX);
