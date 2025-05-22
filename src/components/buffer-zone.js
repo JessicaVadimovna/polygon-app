@@ -26,7 +26,7 @@ class BufferZone extends HTMLElement {
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-    const padding = Math.max(maxX - minX, maxY - minY) * 0.01; // Уменьшено до 1%
+    const padding = Math.max(maxX - minX, maxY - minY) * 0.01;
     
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', minX - padding);
@@ -48,6 +48,11 @@ class BufferZone extends HTMLElement {
       this.startDragging(e, group, points);
       e.preventDefault();
     });
+    group.addEventListener('touchstart', e => {
+      console.log('BufferZone group touchstart, points:', points);
+      this.startDragging(e, group, points);
+      e.preventDefault();
+    });
     group.appendChild(rect);
     group.appendChild(polygon);
     this.svg.appendChild(group);
@@ -60,8 +65,10 @@ class BufferZone extends HTMLElement {
 
     const svg = this.svg;
     const rect = svg.getBoundingClientRect();
-    const startX = event.clientX;
-    const startY = event.clientY;
+    const viewBox = svg.viewBox.baseVal;
+    const isTouch = event.type === 'touchstart' || event.type === 'touchmove';
+    const startX = isTouch ? event.touches[0].clientX : event.clientX;
+    const startY = isTouch ? event.touches[0].clientY : event.clientY;
     let translateX = 0;
     let translateY = 0;
 
@@ -69,26 +76,41 @@ class BufferZone extends HTMLElement {
     const cx = coords.reduce((sum, p) => sum + p[0], 0) / coords.length;
     const cy = coords.reduce((sum, p) => sum + p[1], 0) / coords.length;
 
-    const onMouseMove = e => {
-      const dx = (e.clientX - startX) * (svg.viewBox.baseVal.width / rect.width);
-      const dy = (e.clientY - startY) * (svg.viewBox.baseVal.height / rect.height);
-      translateX = dx;
-      translateY = dy;
-      group.setAttribute('transform', `translate(${dx}, ${dy})`);
+    const updatePosition = (e) => {
+      const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+      const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+      const dxPixels = clientX - startX;
+      const dyPixels = clientY - startY;
+      translateX = (dxPixels * viewBox.width) / rect.width;
+      translateY = (dyPixels * viewBox.height) / rect.height;
+      group.setAttribute('transform', `translate(${translateX}, ${translateY})`);
     };
 
-    const onMouseUp = e => {
+    let rafId = null;
+    const onMove = (e) => {
+      e.preventDefault();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => updatePosition(e));
+    };
+
+    const onEnd = (e) => {
       group.style.cursor = 'grab';
       group.style.zIndex = '';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      if (rafId) cancelAnimationFrame(rafId);
+
+      const clientX = isTouch && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = isTouch && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
 
       const bufferRect = this.getBoundingClientRect();
       if (
-        e.clientX >= bufferRect.left &&
-        e.clientX <= bufferRect.right &&
-        e.clientY >= bufferRect.top &&
-        e.clientY <= bufferRect.bottom
+        clientX >= bufferRect.left &&
+        clientX <= bufferRect.right &&
+        clientY >= bufferRect.top &&
+        clientY <= bufferRect.bottom
       ) {
         const newPoints = points
           .split(' ')
@@ -104,17 +126,17 @@ class BufferZone extends HTMLElement {
         if (workZone) {
           const workRect = workZone.getBoundingClientRect();
           if (
-            e.clientX >= workRect.left &&
-            e.clientX <= workRect.right &&
-            e.clientY >= workRect.top &&
-            e.clientY <= workRect.bottom
+            clientX >= workRect.left &&
+            clientX <= workRect.right &&
+            clientY >= workRect.top &&
+            clientY <= workRect.bottom
           ) {
             const workSvg = workZone.svg;
             const workSvgRect = workSvg.getBoundingClientRect();
             const workViewBox = workSvg.viewBox.baseVal;
             
-            const dropX = (e.clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width) + workViewBox.x;
-            const dropY = (e.clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height) + workViewBox.y;
+            const dropX = (clientX - workSvgRect.left) * (workViewBox.width / workSvgRect.width) + workViewBox.x;
+            const dropY = (clientY - workSvgRect.top) * (workViewBox.height / workSvgRect.height) + workViewBox.y;
             
             const newPoints = points
               .split(' ')
@@ -136,8 +158,10 @@ class BufferZone extends HTMLElement {
       }
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
   }
 
   clear() {
